@@ -22,7 +22,7 @@ from HybridWB_FEM.wbm_bottom import WBM_Bottom
 print("\n 1. Geometry and mesh setup...\n")
 # 1. Geometry Setup
 L = 2.0
-Lx = L/2
+Lx = L
 Ly = L/32
 
 # Air

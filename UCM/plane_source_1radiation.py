@@ -12,6 +12,7 @@ project_root = os.path.abspath(os.path.join(current_dir, '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
 from HybridWB_FEM.wbm_top import WBM_Top
+from HybridWB_FEM.wbm_bottom import WBM_Bottom
 
 # =====================================================================
 # 1. Geometry and mesh setup
@@ -105,8 +106,11 @@ print("Assembly complete!")
 print("\n 4. Build WBM model and coupling matrices...\n")
 m_max = 2
 n_max = 2
-wbm_top = WBM_Top(Lx, Ly, L, freq, c_0, rho_air, m_max, n_max, theta, phi)
-Z_hyb, Z_wbm = wbm_top.assemble_matrices(mesh, fes, q, "top")
+# wbm_top = WBM_Top(Lx, Ly, L, freq, c_0, rho_air, m_max, n_max, theta, phi)
+# Z_hyb, Z_wbm = wbm_top.assemble_matrices(mesh, fes, q, "top")
+
+wbm_bottom = WBM_Bottom(Lx, Ly, 0, freq, c_0, rho_air, m_max, n_max, theta, phi)
+Z_hyb, Z_wbm = wbm_bottom.assemble_matrices(mesh, fes, q, "bottom")
 print("shape of Z_wbm:", Z_wbm.shape)
 print("shape of Z_hyb:", Z_hyb.shape)
 print("condition number of Z_wbm:", np.linalg.cond(Z_wbm))
@@ -131,7 +135,7 @@ bottom_row = np.hstack([Z_hyb_free.conj().T, Z_wbm])
 Global_Matrix = sp.vstack([top_row, bottom_row]).tocsc()
 
 # Global RHS Vector 
-s_wbm = np.zeros(wbm_top.total_waves, dtype=complex)
+s_wbm = np.zeros(wbm_bottom.total_waves, dtype=complex)
 Global_RHS = np.concatenate([s_fem_free, s_wbm])
 
 # Solve the dense/sparse hybrid system using SuperLU

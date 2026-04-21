@@ -1,7 +1,7 @@
 import numpy as np
 from ngsolve import *
 
-class WBM_Top:
+class WBM_Bottom:
     def __init__(self, L_x, L_y, z_plane, frequency, c_fluid, rho_fluid, m_max=2, n_max=2, theta=0.0, phi=0.0):
         
         self.Lx = L_x
@@ -39,7 +39,7 @@ class WBM_Top:
                 ky = 2 * np.pi * n / self.Ly
                 
                 val = self.k**2 - (self.k_x0 + kx)**2 - (self.k_y0 + ky)**2
-                kz = np.sqrt(val) if val.real >= 0 else 1j * np.sqrt(-val)
+                kz = - np.sqrt(val) if val.real >= 0 else - 1j * np.sqrt(-val)
                 
                 self.wave_kx.append(kx)
                 self.wave_ky.append(ky)
@@ -49,8 +49,8 @@ class WBM_Top:
                 phi_w = exp(1j * (kx * x + ky * y + kz * (z - self.z_plane)))
                 self.waves.append(phi_w)
 
-    def assemble_matrices(self, mesh, fes, test_function_v, interface_name="top"):
-        print(f"[WBM at top surface] Assembling coupling matrices for {self.total_waves} wave functions...")
+    def assemble_matrices(self, mesh, fes, test_function_v, interface_name="bottom"):
+        print(f"[WBM at bottom surface] Assembling coupling matrices for {self.total_waves} wave functions...")
         
         Z_hyb = np.zeros((fes.ndof, self.total_waves), dtype=complex)
         Z_wbm = np.zeros((self.total_waves, self.total_waves), dtype=complex)
@@ -58,13 +58,13 @@ class WBM_Top:
         for i in range(self.total_waves):
             dphi_i_dz = 1j*self.wave_kz[i]*self.waves[i]
             cwf = LinearForm(fes)
-            cwf += - dphi_i_dz * test_function_v * ds(interface_name)
+            cwf += dphi_i_dz * test_function_v * ds(interface_name)
             with TaskManager():
                 cwf.Assemble()
             Z_hyb[:, i] = cwf.vec.FV().NumPy()
             for j in range(self.total_waves):
                 phi_j = self.waves[j]
-                integrand = Conj(dphi_i_dz) * phi_j
+                integrand = - Conj(dphi_i_dz) * phi_j
                 # Integrate symbolically over the interface boundary
                 val = Integrate(integrand, mesh, definedon=mesh.Boundaries(interface_name))
                 Z_wbm[i, j] = val

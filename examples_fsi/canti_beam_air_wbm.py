@@ -23,84 +23,128 @@ from HybridWB_FEM.wbm_bottom import WBM_Bottom
 print("\n 1. Geometry and mesh setup...\n")
 # 1. Geometry Setup
 L = 4.0
+
 Lx = L
 Ly = L/64
+Lz = L
+Lz_1 = 0.98 * L/2
+Lz_2 = 0.98 * L/2      
 
-maxh = 0.4
-minh = 0.2
+Lx_plate = 0.99* Lx/2  
+Lz_plate = L - Lz_1 - Lz_2
+
+# Meshing parameters
+maxh = 0.16
+minh = 0.08
 mp = MeshingParameters(maxh=maxh, minh=minh)
+curve_order = 2
 
-# Air
-geometry = Box((0, 0, 0), (Lx, Ly, L))
-geometry.mat("air")     
+# 1. Air Volumes
+duct = Box((0, 0, 0), (Lx, Ly, Lz))
+duct.faces.Max(X).Identify(duct.faces.Min(X), "periodic_x")
+duct.faces.Max(Y).Identify(duct.faces.Min(Y), "periodic_y")
 
-# Tag the boundaries for Boundary Conditions
-geometry.faces.Max(Z).name = "top"
-geometry.faces.Min(Z).name = "bottom"
+# 2. Plate Volumes
+plate_left = Box((0, 0, Lz_1), (Lx_plate, Ly, Lz_1 + Lz_plate))
+plate_right = Box((Lx - Lx_plate, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
 
-# 3. Identify Periodic Faces
-geometry.faces.Max(X).Identify(geometry.faces.Min(X), "periodic_x")
-geometry.faces.Max(Y).Identify(geometry.faces.Min(Y), "periodic_y")
+# Glue them together to ensure conforming mesh nodes at the interfaces
+plate_domains = plate_left + plate_right
+plate_domains.mat("solid")
+air_domains = duct - plate_domains
+air_domains.mat("fluid")
 
-# 4. Generate Mesh
-geo = OCCGeometry(geometry)
+plate_domains.faces.Max(X).Identify(plate_domains.faces.Min(X), "periodic_x")
+plate_domains.faces.Max(Y).Identify(plate_domains.faces.Min(Y), "periodic_y")
+
+# Detect interfaces and rename them for coupling
+for f in air_domains.faces:
+    f.name = "fluid_boundary"
+
+combined_geo = Glue([air_domains, plate_domains])
+
+for f in plate_domains.faces:
+    if f.name == "fluid_boundary":
+        f.name = "fsi_interface"
+
+combined_geo.faces.Max(Z).name = "top"
+combined_geo.faces.Min(Z).name = "bottom"
+
+geo = OCCGeometry(combined_geo)
 mesh = Mesh(geo.GenerateMesh(mp=mp))
 
+# interface_marker = mesh.BoundaryCF({"fsi_interface": 1}, default=0)
+# Draw(interface_marker, mesh, "FSI_Interface")
+# input("Mesh generated successfully! Press Enter to continue...")
 print("Mesh generated successfully!")
 
 # =====================================================================
 # 2. Define physics and finite element space
 # =====================================================================
 print("\n 2. Define physics and finite element space...\n")
-# 1. Physics Parameters
-freq = 343.0/2     
-c_0 = 343.0* (1 - 1j * 0.001)  # Complex speed of sound to introduce a small amount of damping
+# Air Parameters
+freq = 343.0/2
+c_0 = 343.0* (1 - 1j * 0.001)  
 k = 2 * math.pi * freq / c_0  
 rho_air = 1.21
+omega = 2 * math.pi * freq
+
+# Solid (Steel Plate) Parameters
+E = 210e9              # Young's Modulus (Pa)
+nu = 0.3               # Poisson's ratio
+rho_s = 7800.0         # Density (kg/m^3)
+mu = E / (2 * (1 + nu))
+lam = E * nu / ((1 + nu) * (1 - 2 * nu))
 
 # Incident angles (e.g., 45 degrees)
 theta = (math.pi / 4)  # Polar angle (0 for normal incidence)
 phi = 0.0
-
-# Wave vector components
 kx = k * math.sin(theta) * math.cos(phi)
 ky = k * math.sin(theta) * math.sin(phi)
 kz = k * math.cos(theta)
-
-# Transverse wave vector for the Floquet shift
 k_vec = CF((kx, ky, 0)) 
 
 # Finite Element Space
-fes = Periodic(H1(mesh, order=4, complex=True))
+fes_air = Periodic(H1(mesh, order=curve_order, complex=True, definedon=mesh.Materials("fluid")))
+fes_plate = Periodic(VectorH1(mesh, order=curve_order, complex=True, definedon=mesh.Materials("solid"), dirichlet="plate1_left|plate2_right"))  # Clamped BCs on plate edges
 
-p,q = fes.TnT()
+fes = (fes_air * fes_plate)
+(p, u), (q, w) = fes.TnT()  # p,q = acoustic ; u,w = elastic
 
-print(f"Degrees of freedom: {fes.ndof}")
-print(f"wave vector k: ({kx:.2f}, {ky:.2f}, {kz:.2f})")
+print(f"Total FSI Degrees of Freedom: {fes.ndof}")
 
 # =====================================================================
-# 3. Define variational forms and assemble FE model
+# 3. Define variational forms
 # =====================================================================
 print("\n 3. Define variational forms and assemble FE model...\n")
-# 1. Modified Gradients (Floquet Trick)
-grad_p = grad(p) + 1j * k_vec * p
-grad_q = grad(q) - 1j * k_vec * q 
+# Differential Operators 
+def grad_p(p): return grad(p) + 1j * k_vec * p
+def grad_q(q): return grad(q) - 1j * k_vec * q
+def eps_u(u): return Sym(Grad(u) + 1j * OuterProduct(u, k_vec))
+def eps_w(w): return Sym(Grad(w) - 1j * OuterProduct(w, k_vec))
+
+def stress(u): return 2*mu*eps_u(u) + lam*Trace(eps_u(u))*Id(3)
 
 # 2. Bilinear Form (LHS)
 Z_fem = BilinearForm(fes)
-Z_fem += (grad_p * grad_q - k**2 * p * q) * dx
+Z_fem += (grad_p(p) * grad_q(q) - k**2 * p * q) * dx("fluid")
+Z_fem += (InnerProduct(stress(u), eps_w(w)) - rho_s * omega**2 * InnerProduct(u, w)) * dx("solid")
+
+# FSI Interface Coupling 
+n_plate_to_air = specialcf.normal(mesh.dim)
+Z_fem += rho_air * omega**2 * (n_plate_to_air * u)* q * ds("fsi_interface")    
+Z_fem += p * (n_plate_to_air *w) * ds("fsi_interface")                      
 
 # 3. Linear Form (RHS) - Surface source on the bottom boundary
 s_fem = LinearForm(fes)
-# Gaussian source
-source_func = exp(-(z-1*L/3)**2/(L/20)**2)
-s_fem += source_func* q * dx
+source_func = exp(-((z-1*L/4)**2)/(L/20)**2)
+s_fem += source_func* q * dx("fluid")
 
 # 4. Assemble 
 with TaskManager():
     Z_fem.Assemble()
     s_fem.Assemble()
-    
+
 # 5. Extract free DOFs
 freedofs = fes.FreeDofs()
 free_indices = [i for i, is_free in enumerate(freedofs) if is_free]
@@ -111,7 +155,7 @@ print("Assembly complete!")
 # 4. Build WBM model and coupling matrices
 # =====================================================================
 print("\n 4. Build WBM model and coupling matrices...\n")
-m_max = 4
+m_max = 2
 n_max = 0
 wbm_top = WBM_Top(Lx, Ly, L, freq, c_0, rho_air, m_max, n_max, theta, phi)
 Z_hyb_top, Z_wbm_top = wbm_top.assemble_matrices(mesh, fes, q, "top")
@@ -150,24 +194,23 @@ Global_RHS = np.concatenate([s_fem_free, s_wbm])
 # Solve the dense/sparse hybrid system using SuperLU
 solution = spla.spsolve(Global_Matrix, Global_RHS)
 
-p_fem_vals = solution[:len(free_indices)]
-p_wbm_factors = solution[len(free_indices):]
+fem_vals = solution[:len(free_indices)]
+wbm_factors = solution[len(free_indices):]
 
 # Map back to an NGSolve GridFunction
-p_fem_gf = GridFunction(fes)
-p_fem_gf.vec.FV().NumPy()[free_indices] = p_fem_vals
+fem_gf = GridFunction(fes)
+fem_gf.vec.FV().NumPy()[free_indices] = fem_vals
 
 print("Coupled system solved successfully!")
 
-# =====================================================================
-# 6. visualize results
-# =====================================================================
-print("\n 6. Visualize results...\n")
 
 # 1. Reconstruct Field
 phase = exp(1j * (kx * x + ky * y))
-p_true = p_fem_gf * phase
-# 2. Visualize
-print("Rendering total pressure field ...")
-Draw(p_true, mesh, "Acoustic Pressure", animate_complex=True)
-input("Press Enter to exit...")
+gfu_p, gfu_u = fem_gf.components
+gfu_p = gfu_p * phase
+gfu_u = gfu_u * phase
+
+Draw(Norm(gfu_u), mesh, "Disp_Norm", deformation=gfu_u)
+Draw(gfu_p, mesh, "Pressure")
+input("FSI simulation completed! Press Enter to exit...")
+

@@ -8,15 +8,6 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 import scipy.linalg as la
 
-import sys
-import os
-current_dir = os.path.dirname(__file__)
-project_root = os.path.abspath(os.path.join(current_dir, '..'))
-if project_root not in sys.path:
-    sys.path.append(project_root)
-from HybridWB_FEM.wbm_top import WBM_Top
-from HybridWB_FEM.wbm_bottom import WBM_Bottom
-
 # =====================================================================
 # 1. Geometry and mesh setup
 # =====================================================================
@@ -25,29 +16,23 @@ print("\n 1. Geometry and mesh setup...\n")
 L = 4.0
 
 Lx = L
-Ly = L/64
+Ly = L/4
 Lz = L
-Lz_1 = 0.98 * L/2
-Lz_2 = 0.98 * L/2      
-
-Lx_plate = 0.9* Lx/2  
+Lz_1 = 0.8 * L/2
+Lz_2 = 0.8 * L/2  
 Lz_plate = L - Lz_1 - Lz_2
+   
 
 # Meshing parameters
-maxh = 0.1
-minh = 0.05
+maxh = 3.0
+minh = 2.0
 mp = MeshingParameters(maxh=maxh, minh=minh)
-curve_order = 2
+curve_order = 3
 
 # 1. Air Volumes
 duct = Box((0, 0, 0), (Lx, Ly, Lz))
-
 # 2. Plate Volumes
-plate_left = Box((0, 0, Lz_1), (Lx_plate, Ly, Lz_1 + Lz_plate))
-plate_right = Box((Lx - Lx_plate, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
-
-# Glue them together to ensure conforming mesh nodes at the interfaces
-plate_domains = plate_left + plate_right
+plate_domains = Box((0, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
 plate_domains.mat("solid")
 air_domains = duct - plate_domains
 air_domains.mat("fluid")
@@ -69,10 +54,11 @@ for f in plate_domains.faces:
 geo = OCCGeometry(combined_geo)
 mesh = Mesh(geo.GenerateMesh(mp=mp))
 
-#interface_marker = mesh.BoundaryCF({"fsi_interface": 1}, default=0)
-#Draw(interface_marker, mesh, "FSI_Interface")
-#input("Mesh generated successfully! Press Enter to continue...")
+# interface_marker = mesh.BoundaryCF({"fsi_interface": 1}, default=0)
+# Draw(interface_marker, mesh, "FSI_Interface")
+# input("Mesh generated successfully! Press Enter to continue...")
 print("Mesh generated successfully!")
+
 
 # =====================================================================
 # 2. Define physics and finite element space
@@ -80,7 +66,7 @@ print("Mesh generated successfully!")
 print("\n 2. Define physics and finite element space...\n")
 # Air Parameters
 freq = 343.0     
-c_0 = 343.0* (1 - 1j * 0.001)  
+c_0 = 343.0* (1 - 1j * 0.1)  
 k = 2 * math.pi * freq / c_0  
 rho_air = 1.21
 omega = 2 * math.pi * freq
@@ -124,7 +110,7 @@ Z_fem += p * (n_plate_to_air *w) * ds("fsi_interface")
 
 # 3. Linear Form (RHS) - Surface source on the bottom boundary
 s_fem = LinearForm(fes)
-source_func = exp(-((z-1*L/3)**2)/(L/20)**2)
+source_func = exp(-((z-1*L/4)**2 + (x-Lx/2)**2)/(L/20)**2)
 s_fem += source_func* q * dx("fluid")
 
 
@@ -137,8 +123,11 @@ with TaskManager():
 
 gfu_p, gfu_u = gfu.components
 
-Draw(Norm(gfu_u), mesh, "Disp_Norm", deformation=gfu_u)
+# Draw(u_vis, mesh, "u_masked")
+Draw(Norm(gfu_u), mesh, "Disp_Norm")
 Draw(gfu_p, mesh, "Pressure")
 input("FSI simulation completed! Press Enter to exit...")
 
-
+print("length of gfu_u:", len(gfu_u.vec))
+print("length of gfu_p:", len(gfu_p.vec))
+print("norm of gfu_u:", gfu_u.vec.Norm())

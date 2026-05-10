@@ -23,19 +23,18 @@ print("\n 1. Geometry and mesh setup...\n")
 L = 4.0
 
 Lx = L
-Ly = L/64
+Ly = L
 Lz = L
-Lz_1 = 0.98 * L/2
-Lz_2 = 0.98 * L/2      
+Lz_1 = 0.2 * L
+Lz_plate = 0.02 * L
 
-Lx_plate = 0.99* Lx/2  
-Lz_plate = L - Lz_1 - Lz_2
+r_hole = 0.5* Lx/2  
 
 # Meshing parameters
-maxh = 0.16
-minh = 0.08
+maxh = 0.6
+minh = 0.4
 mp = MeshingParameters(maxh=maxh, minh=minh)
-curve_order = 2
+curve_order = 3
 
 # 1. Air Volumes
 duct = Box((0, 0, 0), (Lx, Ly, Lz))
@@ -43,9 +42,10 @@ duct.faces.Max(X).Identify(duct.faces.Min(X), "periodic_x")
 duct.faces.Max(Y).Identify(duct.faces.Min(Y), "periodic_y")
 
 # 2. Plate Volumes
-plate_left = Box((0, 0, Lz_1), (Lx_plate, Ly, Lz_1 + Lz_plate))
-plate_right = Box((Lx - Lx_plate, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
-plate_domains = plate_left + plate_right
+plate_steel = Box((0, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
+hole_steel = Cylinder(Pnt(Lx/2, Ly/2, Lz_1), gp_Vec(0,0,1), r_hole, Lz_plate)
+
+plate_domains = plate_steel - hole_steel
 plate_domains.mat("solid")
 plate_domains.faces.Max(X).Identify(plate_domains.faces.Min(X), "periodic_x")
 plate_domains.faces.Max(Y).Identify(plate_domains.faces.Min(Y), "periodic_y")
@@ -147,8 +147,8 @@ print("Assembly complete!")
 # 4. Build WBM model and coupling matrices
 # =====================================================================
 print("\n 4. Build WBM model and coupling matrices...\n")
-m_max = 2
-n_max = 0
+m_max = 4
+n_max = 4
 wbm_top = WBM_Top(Lx, Ly, L, freq, c_0, rho_air, m_max, n_max, theta, phi)
 Z_hyb_top, Z_wbm_top = wbm_top.assemble_matrices(mesh, fes, q, "top")
 wbm_bottom = WBM_Bottom(Lx, Ly, 0, freq, c_0, rho_air, m_max, n_max, theta, phi)
@@ -175,7 +175,7 @@ gfu_p, gfu_u = fem_gf.components
 gfu_p = gfu_p * phase
 gfu_u = gfu_u * phase
 
-Draw(Norm(gfu_u), mesh, "Disp_Norm", deformation=gfu_u)
-Draw(gfu_p, mesh, "Pressure")
+Draw(Norm(gfu_u), mesh, name="Disp_Norm", deformation=gfu_u)
+Draw(gfu_p, mesh, name="Pressure")
 input("FSI simulation completed! Press Enter to exit...")
 

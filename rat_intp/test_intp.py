@@ -7,9 +7,9 @@ from poly_rat import eval_rational_poly, rational_poly_interpolation
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 # Define interval and function
-a_int, b_int = 0.0, 5.0
-L = (b_int - a_int)       
-n_samp = 30
+a_int, b_int = 0.0, 6.0
+L = (b_int - a_int)     
+n_samp = 40
 
 def f_exact(x):
     return 1/(np.sin((x*(1 + 1e-3*1j)-L/3)**2) + 1e-3*1j)*(np.cos((x*(1 + 1e-3*1j)-L/3*2)**2) + 1e-3*1j)   
@@ -56,6 +56,7 @@ ax1.plot(x_sample, np.abs(y_sample), 'b.', label='Sample points')
 ax1.set_ylabel('f(x)')
 ax1.legend()
 ax1.set_title(f'Rational Polynomial Interpolation with {n_samp} Points')
+ax1.grid(True, alpha=0.3)
 
 # Bottom: relative error
 ax2.semilogy(x_dense, rel_error, 'm-')

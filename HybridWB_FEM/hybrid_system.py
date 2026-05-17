@@ -17,7 +17,7 @@ class HybridSystem:
 
     def combine_matrices(self, Z_fem, s_fem, Z_hyb, Z_wbm):
         """ Combines the WBM and FEM matrices into a single system matrix. """
-        print("[WBM at top and bottom surfaces] Combining WBM and FEM matrices...")
+        # print("[WBM at top and bottom surfaces] Combining WBM and FEM matrices...")
         
         # Convert sparse Z_fem to SciPy CSC format
         row, col, val = Z_fem.mat.COO()

@@ -30,8 +30,8 @@ Lz_1 = 0.1 * L
 Lz_plate = 0.02 * L
 
 # Meshing parameters
-maxh = 0.4
-minh = 0.2
+maxh = 0.1
+minh = 0.05
 mp = MeshingParameters(maxh=maxh, minh=minh)
 curve_order = 3
 
@@ -58,7 +58,7 @@ print("Mesh generated successfully!")
 # =====================================================================
 print("\n 2. Define physics and finite element space...\n")
 # Air Parameters
-freq = 343.0/2
+freq = 1000.0
 c_0 = 343.0* (1 - 1j * 1e-4)  
 k = 2 * math.pi * freq / c_0  
 rho_air = 1.21
@@ -165,8 +165,10 @@ rel_error = np.abs(abs(vals) - abs(P_analytical)) / (abs(P_analytical) + 1e-15)
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 # Top Plot: Comparison
-ax1.plot(zs, vals.real, 'b-', label="Numerical", alpha=0.7)
-ax1.plot(zs, -P_analytical.real, 'r--', label="Analytical")
+ax1.semilogy(zs, abs(vals), 'b-', label="Numerical", alpha=0.7)
+ax1.semilogy(zs, abs(P_analytical), 'r--', label="Analytical")
+ax1.semilogy(zs, abs(np.exp(- k**2 * (L/40)**2)/(2*k))*np.ones_like(zs), '--', label="Asymptotic")
+
 ax1.set_ylabel("Pressure $p(z)$")
 ax1.set_title("Pressure distribution along z-axis")
 ax1.legend()

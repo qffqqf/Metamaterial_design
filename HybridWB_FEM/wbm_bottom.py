@@ -50,7 +50,7 @@ class WBM_Bottom:
                 self.waves.append(phi_w)
 
     def assemble_matrices(self, mesh, fes, test_function_v, interface_name="bottom"):
-        print(f"[WBM at bottom surface] Assembling coupling matrices for {self.total_waves} wave functions...")
+        # print(f"[WBM at bottom surface] Assembling coupling matrices for {self.total_waves} wave functions...")
         
         Z_hyb = np.zeros((fes.ndof, self.total_waves), dtype=complex)
         Z_wbm = np.zeros((self.total_waves, self.total_waves), dtype=complex)

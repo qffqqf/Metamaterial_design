@@ -35,7 +35,6 @@ def get_bare_plate_matrices(freq, theta, phi, Lx, Ly, Lz, c_air, rho_air, E_stee
     fes_plate = Periodic(VectorH1(mesh, order=curve_order, complex=True, definedon=mesh.Materials("solid")))  
     fes = (fes_air * fes_plate)
     (p, u), (q, w) = fes.TnT()  # p,q = acoustic ; u,w = elastic
-    print(f"Total FSI Degrees of Freedom: {fes.ndof}")
 
     # =====================================================================
     # 2. Define variational forms
@@ -59,16 +58,13 @@ def get_bare_plate_matrices(freq, theta, phi, Lx, Ly, Lz, c_air, rho_air, E_stee
 
     # Linear Form (RHS) - Surface source on the bottom boundary
     s_fem = LinearForm(fes)
-    source_func = exp(-((z-3*Lz/4)**2)/(Lz/20)**2) / (Lz/20 * sqrt(pi))
+    source_func = exp(-((z-1*Lz/4)**2)/(Lz/20)**2) / (Lz/20 * sqrt(pi))
     s_fem += source_func* q * dx("fluid")
 
     # Assemble 
     with TaskManager():
         Z_fem.Assemble()
         s_fem.Assemble()
-
-    print("Assembly complete!")
-
     # =====================================================================
     # 3. Build WBM model and coupling matrices
     # =====================================================================
@@ -78,7 +74,6 @@ def get_bare_plate_matrices(freq, theta, phi, Lx, Ly, Lz, c_air, rho_air, E_stee
     Z_hyb_bottom, Z_wbm_bottom = wbm_bottom.assemble_matrices(mesh, fes, q, "bottom")
 
     total_waves = wbm_top.total_waves  + wbm_bottom.total_waves
-    print(f"Total WBM wave functions: {total_waves}")
     Z_hyb = np.hstack([Z_hyb_top, Z_hyb_bottom])
     Z_wbm = la.block_diag(Z_wbm_top, Z_wbm_bottom)
     print("condition number of Z_wbm:", np.linalg.cond(Z_wbm))
@@ -89,4 +84,4 @@ def get_bare_plate_matrices(freq, theta, phi, Lx, Ly, Lz, c_air, rho_air, E_stee
     HBSys = HybridSystem(fes, total_waves)
     Global_Matrix, Global_RHS = HBSys.combine_matrices(Z_fem, s_fem, Z_hyb, Z_wbm)
 
-    return Global_Matrix, Global_RHS, HBSys.free_indices, fes, kx, ky
+    return Global_Matrix, Global_RHS, HBSys.free_indices, fes, kx, ky, kz

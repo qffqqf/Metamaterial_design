@@ -15,15 +15,15 @@ from get_sys_mat import get_bare_plate_matrices
 print("\n 1. Geometry and mesh setup...\n")
 # 1. Geometry Setup
 L = 4.0
-Lx = L/10
-Ly = L/10
+Lx = L/5
+Ly = L/40
 Lz = L
-Lz_1 = 0.5 * L
-Lz_plate = 0.02 * L
+Lz_1 = 0.8 * L
+Lz_plate = 0.01 * L
 
 # Meshing parameters
-maxh = 0.4
-minh = 0.2
+maxh = 0.1
+minh = 0.08
 mp = MeshingParameters(maxh=maxh, minh=minh)
 curve_order = 3
 
@@ -79,7 +79,7 @@ print("Mesh generated successfully!")
 # 2. Get system matrices for the bare plate case (no WBM coupling)
 # =====================================================================
 print("\n 2. Build and solve the coupled system...\n")
-Global_Matrix, Global_RHS, free_indices, fes, kx, ky = get_bare_plate_matrices(
+Global_Matrix, Global_RHS, free_indices, fes, kx, ky, kz = get_bare_plate_matrices(
     freq, theta, phi, Lx, Ly, Lz, c_air, rho_air, E_steel, nu_steel, rho_steel, mesh, curve_order, m_max, n_max)
 
 solution = spla.spsolve(Global_Matrix, Global_RHS)

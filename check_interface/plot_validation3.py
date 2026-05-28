@@ -2,79 +2,40 @@ from netgen.occ import *
 from netgen.meshing import MeshingParameters
 from ngsolve import *
 import netgen.gui  
-import ngsolve
+import ngsolve as ng
 import numpy as np
 import math
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 import scipy.linalg as la
-from ngsolve import Draw
-
-# -----------------------
-# 0) User parameters
-# -----------------------
-# Duct size (x = propagation direction)
-Lx = 0.40
-Hy = 0.13
-Hz = 0.13
-
-# Plate position and thicknesses
-xp = 0.20          # steel plate starts at x=xp
-ts = 0.005         # steel thickness
-tr = 0.005         # rubber layer thickness (downstream of steel)
-r_hole = 0.05     # hole radius
-
-maxh = 0.03
-minh = 0.01
-mp = MeshingParameters(maxh=maxh, minh=minh)
-curve_order = 2
-
-# -----------------------
-# 1) Geometry (duct + steel plate w/ hole + rubber layer + rubber plug sealing hole)
-# -----------------------
-yc, zc = Hy/2, Hz/2
-duct = Box((0,0,0), (Lx,Hy,Hz))
-# Steel plate box (full cross-section)
-steel_box = Box((xp, 0, 0), (xp+ts, Hy, Hz))
-# Hole through steel thickness (axis along +x)
-hole_steel = Cylinder(Pnt(xp, yc, zc), gp_Vec(1,0,0), r_hole, ts)
-steel = steel_box - hole_steel
-steel.mat("steel")
-
-# Rubber layer downstream, annulus (hole continues) ...
-rubber = Box((xp+ts, 0, 0), (xp+ts+tr, Hy, Hz))
-tip_rubber = Cylinder(Pnt(xp, yc, zc), gp_Vec(1,0,0), r_hole/3, ts)
-rubber = rubber + tip_rubber
-rubber.mat("rubber")
-
-# Fluid = duct minus solid union
-solid_union = steel + rubber
-fluid = duct - solid_union
-fluid.mat("fluid")
-
-for f in fluid.faces:
-    f.name = "fluid_boundary"
-
-combined_geo = Glue([fluid, solid_union])
-
-for f in solid_union.faces:
-    if f.name == "fluid_boundary":
-        f.name = "fsi_interface"
-
-geo = OCCGeometry(solid_union)
-mesh = Mesh(geo.GenerateMesh(mp=mp))
-
-
-interface_marker = mesh.BoundaryCF({"fsi_interface": 1}, default=0)
-# Draw(interface_marker, mesh, "FSI_Interface")
-settings = {"mesh": False, "coloring": (0, 0, 0)}
-# Draw(mesh, settings=settings)
-# input("Mesh generated successfully! Press Enter to continue...")
-
 
 import pyvista as pv
 import numpy as np
-import ngsolve as ng
+
+# 1. Geometry Setup
+L = 0.1
+Lx = 0.05
+Ly = 0.05
+Lz = L
+Lz_1 = 0.8 * L
+Lz_plate = 0.001
+
+# Meshing parameters
+maxh = 0.03
+minh = 0.01
+mp = MeshingParameters(maxh=maxh, minh=minh)
+curve_order = 3
+
+# 2. Plate Volumes
+plate_domains = Box((0, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
+plate_domains.mat("solid")
+center_vertex1 = Vertex(Pnt(*(Lx/2, Ly/2, Lz_1)))
+center_vertex2 = Vertex(Pnt(*(Lx/2, Ly/2, Lz_1 + Lz_plate)))
+
+glued_shape = Glue([plate_domains, center_vertex1, center_vertex2])
+
+geo = OCCGeometry(glued_shape)
+mesh = Mesh(geo.GenerateMesh(mp=mp))
 
 def ngs_to_pyvista(mesh):
     # ---- Extract vertices ----
@@ -120,19 +81,11 @@ pv_mesh = ngs_to_pyvista(mesh)
 
 # Create plotter
 plotter = pv.Plotter()
-
-# Add the mesh (translucent with edges)
 plotter.add_mesh(pv_mesh, color='grey', show_edges=True)
 
-# Compute bounding box
-xmin, xmax, ymin, ymax, zmin, zmax = pv_mesh.bounds
-
-# 2. Define your custom xmin and xmax values here
-custom_xmin = Lx*0.2  # Change this to whatever you want
-custom_xmax = Lx*0.75   # Change this to whatever you want
 
 # 3. Create the box with your updated bounds tuple
-modified_bounds = (custom_xmin, custom_xmax, ymin, ymax, zmin, zmax)
+modified_bounds = (0, Lx, 0, Ly, 0, Lz)
 box = pv.Box(modified_bounds)
 
 # Add semi-transparent bounding box
@@ -140,21 +93,30 @@ plotter.add_mesh(box, color='lightblue', opacity=0.2, style='surface')
 plotter.add_mesh(box, color='lightblue', style='wireframe', line_width=2)
 
 
-center_x = Lx*0.3
-center_y = (ymin + ymax) / 2
-center_z = (zmin + zmax) / 2
+center_x = Lx / 2
+center_y = Ly / 2
+center_z = Lz*0.4
 
 # Example 1: An XY-plane cutting horizontally through the center of the duct
 # i_hat=(1,0,0) and j_hat=(0,1,0) define the orientation span of the plane
 plane = pv.Plane(
     center=(center_x, center_y, center_z),
-    direction=(1, 0, 0),              # Normal vector pointing straight up (+Z)
-    i_size=ymax - ymin,                # Width along Y
-    j_size=zmax - zmin                # Height along Z
+    direction=(0, 0, 1),              # Normal vector pointing straight up (+Z)
+    i_size=Lx,                # Width along Y
+    j_size=Ly                # Height along Z
 )
 # Add the plane to the plotter with custom opacity and color
 plotter.add_mesh(plane, color='pink', opacity=0.4, show_edges=False)
 
-# Show the combined view
-plotter.parallel_projection = True
+
+support = (center_x, center_y, Lz_1 + Lz_plate)
+
+# Line representing the spring
+line = pv.Line(support, (center_x, center_y, Lz_1 + 10 * Lz_plate))
+plotter.add_mesh(line, color='black', line_width=4, label='Spring')
+
+# Mass as a small sphere at the plate centre
+mass_sphere = pv.Sphere(radius=0.003, center=(center_x, center_y, Lz_1 + 10 * Lz_plate))
+plotter.add_mesh(mass_sphere, color='grey', label='Mass')
+# plotter.parallel_projection = True
 plotter.show()

@@ -7,38 +7,40 @@ import scipy.linalg as la
 import scipy.sparse.linalg as spla
 
 import netgen.gui 
-from get_sys_mat import get_bare_plate_matrices
+from get_sys_mat import get_bare_plate_matrices, get_lrm_plate_matrices
 
 # =====================================================================
 # 1. Geometry and mesh setup
 # =====================================================================
 print("\n 1. Geometry and mesh setup...\n")
 # 1. Geometry Setup
-L = 4.0
-Lx = L/20
-Ly = L/20
+L = 0.036
+Lx = 0.0125
+Ly = 0.0125
 Lz = L
-Lz_1 = 0.8 * L
-Lz_plate = 0.01 * L
+Lz_1 = 0.6 * L
+Lz_frame = 0.01
+t_m = 5e-5
+t_f = 5e-4
 
 # Meshing parameters
-maxh = 0.1
-minh = 0.08
+maxh = 0.004
+minh = 0.003
 mp = MeshingParameters(maxh=maxh, minh=minh)
 curve_order = 3
 
 # Physics parameters
 freq_max = 1000.0
 freq_min = 10.0
-N_freq = 100
+N_freq = 20
 
-theta = math.pi / 4 * 0
+theta = math.pi / 4 
 phi = 0.0
 c_air = 343.0* (1 - 1j * 0.001)
 rho_air = 1.21
-E_steel = 210e9* (1 - 1j * 0.02)
+E_steel = 70e9* (1 - 1j * 0.02)
 nu_steel = 0.3
-rho_steel = 7800.0
+rho_steel = 2700.0
 m_max = 1
 n_max = 1
 
@@ -48,36 +50,48 @@ duct.faces.Max(X).Identify(duct.faces.Min(X), "periodic_x")
 duct.faces.Max(Y).Identify(duct.faces.Min(Y), "periodic_y")
 
 # 2. Plate Volumes
-plate_domains = Box((0, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_plate))
-plate_domains.mat("solid")
-plate_domains.faces.Max(X).Identify(plate_domains.faces.Min(X), "periodic_x")
-plate_domains.faces.Max(Y).Identify(plate_domains.faces.Min(Y), "periodic_y")
+frame_domains = Box((0, 0, Lz_1), (Lx, Ly, Lz_1 + Lz_frame))
+void_domain = Box((t_f, t_f, Lz_1 + 2*t_f), (Lx - t_f, Ly - t_f, Lz_1 + Lz_frame))
+frame_domains = frame_domains - void_domain
+frame_domains.mat("steel")
+frame_domains.faces.Max(X).Identify(frame_domains.faces.Min(X), "periodic_x")
+frame_domains.faces.Max(Y).Identify(frame_domains.faces.Min(Y), "periodic_y")
+
+rubber_domain = Box((0, 0, Lz_1 + Lz_frame), (Lx, Ly, Lz_1 + Lz_frame + t_m))
+rubber_domain.mat("rubber")
+rubber_domain.faces.Max(X).Identify(rubber_domain.faces.Min(X), "periodic_x")
+rubber_domain.faces.Max(Y).Identify(rubber_domain.faces.Min(Y), "periodic_y")
+
 
 # 3. Air Domains (subtract plate volumes from duct)
-air_domains = duct - plate_domains
+air_domains = duct - frame_domains - rubber_domain
 air_domains.mat("fluid")
 
 # Detect interfaces and rename them for coupling
 for f in air_domains.faces:
     f.name = "fluid_boundary"
 
-combined_geo = Glue([air_domains, plate_domains])
-
-for f in plate_domains.faces:
+combined_geo = Glue([air_domains, frame_domains, rubber_domain])
+for f in frame_domains.faces:
     if f.name == "fluid_boundary":
         f.name = "fsi_interface"
-
+for f in rubber_domain.faces:
+    if f.name == "fluid_boundary":
+        f.name = "fsi_interface"
+        
 combined_geo.faces.Max(Z).name = "top"
 combined_geo.faces.Min(Z).name = "bottom"
 
-geo = OCCGeometry(combined_geo)
+geo = OCCGeometry(rubber_domain)
 mesh = Mesh(geo.GenerateMesh(mp=mp))
 
-# interface_marker = mesh.BoundaryCF({"fsi_interface": 1}, default=0)
-# Draw(interface_marker, mesh, "FSI_Interface")
-# input("Mesh generated successfully! Press Enter to continue...")
+interface_marker = mesh.BoundaryCF({"fsi_interface": 1}, default=0)
+Draw(interface_marker, mesh, "FSI_Interface")
+# Draw(mesh)
+input("Mesh generated successfully! Press Enter to continue...")
 print("Mesh generated successfully!")
 
+"""
 # =====================================================================
 # 2. Get system matrices for the bare plate case (no WBM coupling)
 # =====================================================================
@@ -89,8 +103,8 @@ tau_2d = np.zeros((N_freq))
 for i_freq, freq in enumerate(freq_arr):
     print("----------------------------------------------------------------")
     print(f"Solving for frequency {freq:.1f} Hz...")
-    Global_Matrix, Global_RHS, free_indices, fes, kx, ky, kz = get_bare_plate_matrices(
-        freq, theta, phi, Lx, Ly, Lz, c_air, rho_air, E_steel, nu_steel, rho_steel, mesh, curve_order, m_max, n_max)
+    Global_Matrix, Global_RHS, free_indices, fes, kx, ky, kz = get_lrm_plate_matrices(
+        freq, theta, phi, Lx, Ly, Lz, Lz_1, Lz_plate, c_air, rho_air, E_steel, nu_steel, rho_steel, mesh, curve_order, m_max, n_max)
     solution = spla.spsolve(Global_Matrix, Global_RHS)
     fem_vals = solution[:len(free_indices)]
     wbm_factors = solution[len(free_indices):]
@@ -119,27 +133,32 @@ l_mh = (d_mh - rho_steel * omega_arr**2 * Lz_plate)/ (rho_air * omega_arr**2)
 TL_kl = - 10 * np.log10(abs(2/(1j* kz_arr * b_kl + 2))**2)
 TL_mh = - 10 * np.log10(abs(2/(1j* kz_arr * l_mh + 2))**2)
 
+""""""
+Draw(gfu_p, mesh, "Pressure_Field")
+input("Simulation completed! Press Enter to continue...")
+
 import matplotlib.pyplot as plt
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 # Plot results for selected angles
-ax1.semilogx(freq_arr, TL_2d, linewidth=2, linestyle="-", label='FEM-WBM')
-ax1.semilogx(freq_arr, TL_kl, linewidth=2, linestyle="--", label='Kirchhoff model')
-ax1.semilogx(freq_arr, TL_mh, linewidth=2, linestyle="-.", label='Mindlin model')
+ax1.plot(freq_arr, TL_2d, linewidth=2, linestyle="-", label='FEM-WBM')
+ax1.plot(freq_arr, TL_kl, linewidth=2, linestyle="--", label='Kirchhoff model')
+ax1.plot(freq_arr, TL_mh, linewidth=2, linestyle="-.", label='Mindlin model')
 ax1.legend()
 ax1.set_ylabel('Transmission Loss [dB]', fontsize=12)
 ax1.grid(True, which='both', linestyle='-', alpha=0.3)
-ax1.set_xlim(10, 1000)
+ax1.set_xlim(freq_min, freq_max)
 
 rel_error_kl = np.abs(abs(TL_2d) - abs(TL_kl)) / (abs(TL_kl) + 1e-15)
 rel_error_mh = np.abs(abs(TL_2d) - abs(TL_mh)) / (abs(TL_mh) + 1e-15)
 
-ax2.loglog(freq_arr, rel_error_kl, linewidth=2, linestyle="-", label='Kirchhoff model')
-ax2.loglog(freq_arr, rel_error_mh, linewidth=2, linestyle="-", label='Mindlin model')
+ax2.semilogy(freq_arr, rel_error_kl, linewidth=2, linestyle="-", label='Kirchhoff model')
+ax2.semilogy(freq_arr, rel_error_mh, linewidth=2, linestyle="-", label='Mindlin model')
 ax2.legend()
 ax2.set_xlabel('Frequency [Hz]', fontsize=12)
 ax2.set_ylabel('Relative difference [-]', fontsize=12)
 ax2.grid(True, which='both', linestyle='-', alpha=0.3)
-ax2.set_xlim(10, 1000)
+ax2.set_xlim(freq_min, freq_max)
 plt.tight_layout()
 plt.show()   
+"""

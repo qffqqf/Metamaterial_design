@@ -23,15 +23,15 @@ print("\n 1. Geometry and mesh setup...\n")
 # 1. Geometry Setup
 L = 4.0
 
-Lx = L/10
-Ly = L/10
+Lx = L/2
+Ly = L/8
 Lz = L
 Lz_1 = 0.1 * L
 Lz_plate = 0.02 * L
 
 # Meshing parameters
-maxh = 0.1
-minh = 0.05
+maxh = 0.2
+minh = 0.1
 mp = MeshingParameters(maxh=maxh, minh=minh)
 curve_order = 3
 
@@ -58,14 +58,14 @@ print("Mesh generated successfully!")
 # =====================================================================
 print("\n 2. Define physics and finite element space...\n")
 # Air Parameters
-freq = 1000.0
+freq = 200.0
 c_0 = 343.0* (1 - 1j * 1e-4)  
 k = 2 * math.pi * freq / c_0  
 rho_air = 1.21
 omega = 2 * math.pi * freq
 
 # Incident angles (e.g., 45 degrees)
-theta = 0*(math.pi / 4)  # Polar angle (0 for normal incidence)
+theta = (math.pi / 4)  # Polar angle (0 for normal incidence)
 phi = 0.0
 kx = k * math.sin(theta) * math.cos(phi)
 ky = k * math.sin(theta) * math.sin(phi)
@@ -93,7 +93,7 @@ Z_fem += (grad_p(p) * grad_q(q) - k**2 * p * q) * dx("fluid")
 
 # Linear Form (RHS) - Surface source on the bottom boundary
 s_fem = LinearForm(fes)
-source_func = exp(-((z-3*L/4)**2)/(L/20)**2) / (L/20 * sqrt(pi))
+source_func = exp(-((z-Lz*0.4)**2)/(L/20)**2) / (L/20 * sqrt(pi))
 s_fem += source_func* q * dx("fluid")
 
 # Assemble 
@@ -157,27 +157,27 @@ def gaussian_source_solution(x, mu, sigma, B, k):
     
     return const * exp_factor * (term1 + term2)
 
-P_analytical = gaussian_source_solution(zs, mu=3*L/4, sigma=L/40*sqrt(2), B=1 / (L/20 * sqrt(pi)), k=k)
+P_analytical = gaussian_source_solution(zs, mu=Lz*0.4, sigma=L/40*sqrt(2), B=1 / (L/20 * sqrt(pi)), k=kz)
 
 rel_error = np.abs(abs(vals) - abs(P_analytical)) / (abs(P_analytical) + 1e-15)
+
 
 # Create subplots
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 # Top Plot: Comparison
-ax1.semilogy(zs, abs(vals), 'b-', label="Numerical", alpha=0.7)
-ax1.semilogy(zs, abs(P_analytical), 'r--', label="Analytical")
-ax1.semilogy(zs, abs(np.exp(- k**2 * (L/40)**2)/(2*k))*np.ones_like(zs), '--', label="Asymptotic")
+ax1.plot(zs, abs(vals), '-', label="FEM-WBM", alpha=0.7)
+ax1.plot(zs, abs(P_analytical), '--', label="Analytical solution")
+ax1.plot(zs, abs(np.exp(- kz**2 * (L/40)**2)/(2*kz))*np.ones_like(zs), '-.', label="Asymptotic solution", color='green')
 
-ax1.set_ylabel("Pressure $p(z)$")
-ax1.set_title("Pressure distribution along z-axis")
+ax1.set_ylabel("$|p(z)|$ [Pa]", fontsize=12)
 ax1.legend()
 ax1.grid(True)
 
 # Bottom Plot: Relative Error
-ax2.semilogy(zs, rel_error, 'k-', label="Relative Error")
-ax2.set_xlabel("z")
-ax2.set_ylabel("Relative Error (log scale)")
+ax2.semilogy(zs, rel_error, 'k-', label="Relative Error", alpha=0.7)
+ax2.set_xlabel("z [m]", fontsize=12)
+ax2.set_ylabel("Relative Error [-]", fontsize=12)
 ax2.grid(True, which="both", ls="-", alpha=0.5)
 ax2.legend()
 

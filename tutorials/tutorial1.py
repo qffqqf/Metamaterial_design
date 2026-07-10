@@ -23,10 +23,10 @@ gmsh.model.addPhysicalGroup(1, [1, 2, 4], name="My curves")
 gmsh.model.addPhysicalGroup(2, [1], name="My surface")
 gmsh.model.mesh.generate(2)
 
-gmsh.write("./tutorial/mesh_files/t1.msh")
+gmsh.write("./tutorials/mesh_files/t1.msh")
 gmsh.finalize()
 
-mesh = meshio.read("./tutorial/mesh_files/t1.msh")
+mesh = meshio.read("./tutorials/mesh_files/t1.msh")
 print(mesh)
 mesh.cell_sets.clear()
 mesh_pv = pv.from_meshio(mesh)

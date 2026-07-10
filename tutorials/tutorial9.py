@@ -34,11 +34,11 @@ boundary_id = gmsh.model.addPhysicalGroup(2, sphere_surf_tags, name="Sphere_Boun
 gmsh.option.setNumber("Mesh.MeshSizeMin", R / 5)
 gmsh.model.mesh.generate(3)
 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
-gmsh.write("./tutorial/mesh_files/t9.msh")
+gmsh.write("./tutorials/mesh_files/t9.msh")
 gmsh.finalize()
 
 # --- 5. PyVista Plotting ---
-mesh = meshio.read("./tutorial/mesh_files/t9.msh")
+mesh = meshio.read("./tutorials/mesh_files/t9.msh")
 mesh_pv = pv.from_meshio(mesh)
 
 tetra_mesh = mesh_pv.extract_cells(mesh_pv.celltypes == pv.CellType.TETRA)

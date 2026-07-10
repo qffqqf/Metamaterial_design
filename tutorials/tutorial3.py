@@ -103,10 +103,10 @@ gmsh.model.mesh.setSize(ov, lcar2)
 
 gmsh.model.mesh.generate(3)
 
-gmsh.write("./tutorial/mesh_files/t3.msh")
+gmsh.write("./tutorials/mesh_files/t3.msh")
 gmsh.finalize()
 
-mesh = meshio.read("./tutorial/mesh_files/t3.msh")
+mesh = meshio.read("./tutorials/mesh_files/t3.msh")
 print(mesh)
 mesh.cell_sets.clear()
 mesh_pv = pv.from_meshio(mesh)

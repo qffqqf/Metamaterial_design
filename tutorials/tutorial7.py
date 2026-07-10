@@ -70,11 +70,11 @@ for name, (val, axis) in bounds.items():
 gmsh.option.setNumber("Mesh.MeshSizeMin", 30e-3)
 gmsh.model.mesh.generate(3)
 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
-gmsh.write("./tutorial/mesh_files/t7.msh")
+gmsh.write("./tutorials/mesh_files/t7.msh")
 gmsh.finalize()
 
 # --- 5. PyVista Plotting ---
-mesh = meshio.read("./tutorial/mesh_files/t7.msh")
+mesh = meshio.read("./tutorials/mesh_files/t7.msh")
 mesh_pv = pv.from_meshio(mesh)
 
 tetra_mesh = mesh_pv.extract_cells(mesh_pv.celltypes == pv.CellType.TETRA)

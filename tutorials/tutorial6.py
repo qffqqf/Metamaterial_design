@@ -108,11 +108,11 @@ for name, (val, axis) in bounds.items():
 gmsh.option.setNumber("Mesh.MeshSizeMax", 1e0)
 gmsh.model.mesh.generate(3)
 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
-gmsh.write("./tutorial/mesh_files/t6.msh")
+gmsh.write("./tutorials/mesh_files/t6.msh")
 gmsh.finalize()
 
 # --- 5. PyVista Plotting ---
-mesh = meshio.read("./tutorial/mesh_files/t6.msh")
+mesh = meshio.read("./tutorials/mesh_files/t6.msh")
 mesh_pv = pv.from_meshio(mesh)
 
 tetra_mesh = mesh_pv.extract_cells(mesh_pv.celltypes == pv.CellType.TETRA)

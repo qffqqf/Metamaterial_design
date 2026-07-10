@@ -24,10 +24,10 @@ gmsh.option.setNumber("Mesh.MeshSizeMax", 0.08)
 gmsh.model.mesh.generate(3)
 
 
-gmsh.write("./tutorial/mesh_files/t4.msh")
+gmsh.write("./tutorials/mesh_files/t4.msh")
 gmsh.finalize()
 
-mesh = meshio.read("./tutorial/mesh_files/t4.msh")
+mesh = meshio.read("./tutorials/mesh_files/t4.msh")
 print(mesh)
 mesh.cell_sets.clear()
 mesh_pv = pv.from_meshio(mesh)

@@ -90,10 +90,10 @@ gmsh.model.addPhysicalGroup(3, [129, 130], 1, "The volume")
 gmsh.model.mesh.generate(3)
 
 
-gmsh.write("./tutorial/mesh_files/t2.msh")
+gmsh.write("./tutorials/mesh_files/t2.msh")
 gmsh.finalize()
 
-mesh = meshio.read("./tutorial/mesh_files/t2.msh")
+mesh = meshio.read("./tutorials/mesh_files/t2.msh")
 print(mesh)
 mesh.cell_sets.clear()
 mesh_pv = pv.from_meshio(mesh)

@@ -147,8 +147,8 @@ print(f"Total FSI Degrees of Freedom: {fes.ndof}")
 # =====================================================================
 print("\n 3. Define variational forms and assemble FE model...\n")
 # Differential Operators 
-sig_x0 = Parameter(100.0) 
-sig_y0 = Parameter(50.0)  
+sig_x0 = Parameter(5e4) 
+sig_y0 = Parameter(5e4)  
 sigma_0 = CoefficientFunction((sig_x0, 0, 0,
                                0, sig_y0, 0,
                                0, 0,      0), dims=(3,3))
@@ -201,5 +201,6 @@ print(abs(wbm_factors))
 print("Coupled system solved successfully!")
 
 gfu_p, gfu_u = gfu.components
-Draw(gfu_p, mesh, name="Pressure and Displacement")
+Draw(Norm(gfu_u), mesh, name="Disp_Norm", deformation=gfu_u)
+Draw(gfu_p, mesh, name="Pressure")
 input("FSI simulation completed! Press Enter to exit...")

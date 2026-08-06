@@ -3,7 +3,7 @@ import meshio
 import pyvista as pv
 import os
 
-os.makedirs("./tutorial/mesh_files", exist_ok=True)
+os.makedirs("./tutorials/mesh_files", exist_ok=True)
 
 gmsh.initialize()
 gmsh.model.add("air_volume")
@@ -17,7 +17,9 @@ fluid_box = gmsh.model.occ.addBox(0, 0, -H/3, L, W, H)
 gmsh.model.occ.synchronize()
 
 # --- 3. Create Physical Groups ---
-fluid_id = gmsh.model.addPhysicalGroup(3, [fluid_box], name="Fluid")
+# FEniCSx requires explicit integer tags. 
+# We assign tag=1 to the 3D volume.
+fluid_id = gmsh.model.addPhysicalGroup(3, [fluid_box], tag=1, name="Fluid")
 
 # --- Exterior Boundary Surfaces ---
 tol = 1e-6
@@ -33,6 +35,9 @@ bounds = {
 all_surfs = gmsh.model.getEntities(2)
 boundary_ids = {}
 
+# We start boundary tags at 2 to keep them distinct from the volume tag
+tag_counter = 2 
+
 for name, (val, axis) in bounds.items():
     matching = []
     for dim, tag in all_surfs:
@@ -42,14 +47,34 @@ for name, (val, axis) in bounds.items():
         if abs(low - val) < tol and abs(high - val) < tol:
             matching.append(tag)
     if matching:
-        boundary_ids[name] = gmsh.model.addPhysicalGroup(2, matching, name=name)
+        boundary_ids[name] = gmsh.model.addPhysicalGroup(2, matching, tag=tag_counter, name=name)
+        tag_counter += 1
+
+translation_x = [1, 0, 0, L,
+                 0, 1, 0, 0,
+                 0, 0, 1, 0,
+                 0, 0, 0, 1]
+
+translation_y = [1, 0, 0, 0,
+                 0, 1, 0, W,
+                 0, 0, 1, 0,
+                 0, 0, 0, 1]
+
+gmsh.model.mesh.setPeriodic(2, [boundary_ids["Boundary_X_Max"]], [boundary_ids["Boundary_X_Min"]], translation_x)
+gmsh.model.mesh.setPeriodic(2, [boundary_ids["Boundary_Y_Max"]], [boundary_ids["Boundary_Y_Min"]], translation_y)
 
 # --- 4. Generate Mesh and Save ---
 gmsh.option.setNumber("Mesh.MeshSizeMin", 30e-3)
+gmsh.option.setNumber("Mesh.MeshSizeMax", 30e-3) 
 gmsh.model.mesh.generate(3)
-gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+
+# CRITICAL FOR FENICSX: Must be version 4.1
+gmsh.option.setNumber("Mesh.MshFileVersion", 4.1)
+
 gmsh.write("./tutorials/mesh_files/t8.msh")
 gmsh.finalize()
+
+print("Mesh successfully generated as version 4.1 and saved to ./tutorials/mesh_files/t8.msh")
 
 # --- 5. PyVista Plotting ---
 mesh = meshio.read("./tutorials/mesh_files/t8.msh")

@@ -4,7 +4,7 @@ import pyvista as pv
 import os
 import numpy as np
 
-os.makedirs("./tutorial/mesh_files", exist_ok=True)
+os.makedirs("./tutorials/mesh_files", exist_ok=True)
 
 gmsh.initialize()
 gmsh.model.add("air_sphere")
@@ -31,7 +31,8 @@ sphere_surf_tags = [tag for dim, tag in all_surfs]
 boundary_id = gmsh.model.addPhysicalGroup(2, sphere_surf_tags, name="Sphere_Boundary")
 
 # --- 4. Generate Mesh and Save ---
-gmsh.option.setNumber("Mesh.MeshSizeMin", R / 5)
+gmsh.option.setNumber("Mesh.MeshSizeMin", R / 20)
+gmsh.option.setNumber("Mesh.MeshSizeMax", R / 5)
 gmsh.model.mesh.generate(3)
 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
 gmsh.write("./tutorials/mesh_files/t9.msh")

@@ -4,7 +4,7 @@ import pyvista as pv
 import os
 import numpy as np
 
-os.makedirs("./tutorial/mesh_files", exist_ok=True)
+os.makedirs("./tutorials/mesh_files", exist_ok=True)
 
 gmsh.initialize()
 gmsh.model.add("sandwich_plates")

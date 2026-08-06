@@ -3,7 +3,7 @@ import meshio
 import pyvista as pv
 import os
 
-os.makedirs("./tutorial/mesh_files", exist_ok=True)
+os.makedirs("./tutorials/mesh_files", exist_ok=True)
 
 gmsh.initialize()
 gmsh.model.add("bare_plates")
